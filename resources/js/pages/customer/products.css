@@ -1,0 +1,33 @@
+.product-card {
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+/* 🔥 IMAGE FIX */
+.product-image {
+    height: 180px;              /* image chhoti */
+    width: 100%;
+    object-fit: contain;        /* full image show */
+    background: #f8f9fa;        /* light background */
+    padding: 10px;
+}
+
+/* TEXT */
+.card-title {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.list-group-item {
+    font-size: 14px;
+    border: none;
+}
+
+.card-body {
+    display: flex;
+    flex-direction: column;
+}
+
+.card-body button {
+    margin-top: auto;
+}
