@@ -849,5 +849,12 @@ function App() {
 
 createRoot(document.getElementById("app")).render(<App />);
 ``` 
-# Now Run and paste this url http://127.0.0.1:8000/shop and show the header and footer part from all pages.
-<img width="979" height="376" alt="image" src="https://github.com/user-attachments/assets/324576c7-ed41-4d23-9abc-08157f9a42cf" />
+# Now Run server in terminal 
+```php
+npm run build
+mpn run dev
+php artisan serve
+``` 
+# And paste this url http://127.0.0.1:8000/about-us and show the header and footer part from all pages.
+<img width="1894" height="859" alt="image" src="https://github.com/user-attachments/assets/3f93f1c0-218f-4622-8e6b-0226ae397a96" />
+
