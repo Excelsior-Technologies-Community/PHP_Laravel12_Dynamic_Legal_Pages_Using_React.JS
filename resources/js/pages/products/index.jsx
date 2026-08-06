@@ -5,15 +5,18 @@ import { Link } from "react-router-dom";
 export default function Index() {
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
 
     // Fetch Products
     const fetchProducts = async () => {
         try {
             setLoading(true);
-            const res = await axios.get("/products");
+            setError("");
+            const res = await axios.get("/api/products");
             setProducts(res.data);
         } catch (err) {
             console.error("Error fetching products:", err);
+            setError("Failed to load products. Please try again.");
         } finally {
             setLoading(false);
         }
@@ -29,7 +32,7 @@ export default function Index() {
             return;
 
         try {
-            await axios.delete(`/products/${id}`);
+            await axios.delete(`/api/products/${id}`);
             fetchProducts(); // reload list
         } catch (err) {
             console.error("Delete failed:", err);
@@ -55,6 +58,13 @@ export default function Index() {
                         <div className="text-center py-4">
                             <div className="spinner-border text-primary"></div>
                             <p className="mt-2">Loading products...</p>
+                        </div>
+                    ) : error ? (
+                        <div className="alert alert-danger">
+                            {error}
+                            <button className="btn btn-outline-danger btn-sm ms-2" onClick={fetchProducts}>
+                                Retry
+                            </button>
                         </div>
                     ) : (
                         <table className="table table-bordered table-hover align-middle">

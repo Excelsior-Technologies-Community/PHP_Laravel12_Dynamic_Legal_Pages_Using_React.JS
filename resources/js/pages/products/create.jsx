@@ -33,7 +33,7 @@ export default function Create() {
             Object.keys(form).forEach((key) => data.append(key, form[key]));
             data.append("image", image);
 
-            await axios.post("/products", data);
+            await axios.post("/api/products", data);
 
             navigate("/"); // redirect to home/index
         } catch (error) {

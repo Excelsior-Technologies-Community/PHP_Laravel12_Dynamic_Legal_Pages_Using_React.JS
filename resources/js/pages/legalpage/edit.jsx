@@ -13,6 +13,8 @@ export default function LegalPageEdit() {
     const navigate = useNavigate();
 
     const [title, setTitle] = useState("");
+    const [versions, setVersions] = useState([]);
+    const [showVersions, setShowVersions] = useState(false);
 
     const editor = useEditor({
         extensions: [
@@ -29,6 +31,10 @@ export default function LegalPageEdit() {
             setTitle(res.data.title);
             editor.commands.setContent(res.data.description);
         });
+
+        axios.get(`/api/legal-pages/${id}/versions`).then((res) => {
+            setVersions(res.data);
+        });
     }, [id, editor]);
 
     const submit = async (e) => {
@@ -40,6 +46,23 @@ export default function LegalPageEdit() {
         });
 
         navigate("/legal-pages");
+    };
+
+    const rollback = async (versionNumber) => {
+        if (!window.confirm(`Rollback to version ${versionNumber}? Current content will be saved as a new version.`)) return;
+
+        await axios.post(`/api/legal-pages/${id}/rollback`, {
+            version_number: versionNumber,
+        });
+
+        const res = await axios.get(`/api/legal-pages/${id}/edit`);
+        setTitle(res.data.title);
+        editor.commands.setContent(res.data.description);
+
+        const versionRes = await axios.get(`/api/legal-pages/${id}/versions`);
+        setVersions(versionRes.data);
+
+        alert("Rolled back successfully!");
     };
 
     return (
@@ -57,7 +80,6 @@ export default function LegalPageEdit() {
                     onChange={(e) => setTitle(e.target.value)}
                 />
 
-                {/* Toolbar */}
                 <div className="mb-2 d-flex gap-2">
                     <button type="button" className="btn btn-light"
                         onClick={() => editor.chain().focus().toggleBold().run()}>
@@ -85,13 +107,45 @@ export default function LegalPageEdit() {
                     </button>
                 </div>
 
-                {/* Editor Box */}
                 <div className="border rounded p-2" style={{ minHeight: "220px" }}>
                     <EditorContent editor={editor} />
                 </div>
 
-                <button className="btn btn-primary mt-3">Update</button>
+                <div className="d-flex gap-2 mt-3">
+                    <button className="btn btn-primary" type="submit">Update</button>
+                    <button type="button" className="btn btn-outline-secondary" onClick={() => setShowVersions(!showVersions)}>
+                        Version History ({versions.length})
+                    </button>
+                </div>
             </form>
+
+            {showVersions && (
+                <div className="mt-4">
+                    <h5>Version History</h5>
+                    <div className="list-group">
+                        {versions.length === 0 ? (
+                            <p className="text-muted">No previous versions</p>
+                        ) : (
+                            versions.map((v) => (
+                                <div key={v.id} className="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong>Version {v.version_number}</strong>
+                                        <br />
+                                        <small className="text-muted">{new Date(v.created_at).toLocaleString()}</small>
+                                        <p className="mb-0 mt-1 small" style={{ maxWidth: "600px", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                            {v.title}
+                                        </p>
+                                    </div>
+                                    <button className="btn btn-sm btn-outline-primary" onClick={() => rollback(v.version_number)}>
+                                        Rollback
+                                    </button>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
+
