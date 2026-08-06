@@ -26,7 +26,7 @@ export default function Edit() {
     useEffect(() => {
         const loadProduct = async () => {
             try {
-                const res = await axios.get(`/products/${id}/edit`);
+                const res = await axios.get(`/api/products/${id}/edit`);
                 setForm(res.data);
                 setPreview(`/images/${res.data.image}`);
             } catch (err) {
@@ -71,7 +71,7 @@ export default function Edit() {
                 data.append("image", newImage); // only if updated
             }
 
-            await axios.post(`/products/${id}`, data);
+            await axios.post(`/api/products/${id}`, data);
 
             navigate("/"); // redirect to product list
         } catch (error) {

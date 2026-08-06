@@ -8,6 +8,7 @@
 />
 
     <meta charset="UTF-8">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Laravel 12 React</title>
     @viteReactRefresh
     @vite('resources/js/app.jsx')

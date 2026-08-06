@@ -25,6 +25,7 @@ export default function Header() {
             {/* Navigation */}
             <nav style={{ display: "flex", gap: "25px" }}>
                 <Link to="/shop" style={{ color: "white", textDecoration: "none" }}>Shop</Link>
+                <Link to="/cart" style={{ color: "white", textDecoration: "none" }}>Cart</Link>
                 <Link to="/about-us" style={{ color: "white", textDecoration: "none" }}>About Us</Link>
                 <Link to="/privacy-policy" style={{ color: "white", textDecoration: "none" }}>Privacy Policy</Link>
                 <Link to="/terms-and-condition" style={{ color: "white", textDecoration: "none" }}>Terms</Link>
