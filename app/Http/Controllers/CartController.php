@@ -10,23 +10,23 @@ class CartController extends Controller
 {
     /*
     |--------------------------------------------------------------------------
-    | 🛒 SHOW CART (DATABASE)
+    | SHOW CART
     |--------------------------------------------------------------------------
-    | GET /cart
-    | Browser + React dono ke liye
     */
     public function index(Request $request)
     {
-        return Cart::where('session_id', $request->session()->getId())
-                    ->latest()
-                    ->get();
+        return Cart::where(
+            'session_id',
+            $request->session()->getId()
+        )
+        ->latest()
+        ->get();
     }
 
     /*
     |--------------------------------------------------------------------------
-    | ➕ ADD TO CART (SESSION + DATABASE)
+    | ADD TO CART
     |--------------------------------------------------------------------------
-    | POST /add-to-cart
     */
     public function add(Request $request)
     {
@@ -35,22 +35,34 @@ class CartController extends Controller
             'qty' => 'required|integer|min:1|max:5',
         ]);
 
-        $product   = Product::findOrFail($request->id);
-        $sessionId = $request->session()->getId();
-        $qty       = $request->qty;
+        $product = Product::findOrFail($request->id);
 
-        // 🔹 Check if product already in cart
+        $sessionId = $request->session()->getId();
+
+        $qty = (int) $request->qty;
+
         $cartItem = Cart::where('session_id', $sessionId)
-                        ->where('product_id', $product->id)
-                        ->first();
+            ->where('product_id', $product->id)
+            ->first();
 
         if ($cartItem) {
-            // Update qty
-            $cartItem->qty += $qty;
-            $cartItem->total_price = $cartItem->qty * $cartItem->price;
+
+            /*
+            |--------------------------------------------------------------------------
+            | Do not allow total quantity above 5
+            |--------------------------------------------------------------------------
+            */
+            $newQty = min(5, $cartItem->qty + $qty);
+
+            $cartItem->qty = $newQty;
+
+            $cartItem->total_price =
+                $cartItem->price * $newQty;
+
             $cartItem->save();
+
         } else {
-            // Create new cart row
+
             Cart::create([
                 'session_id'  => $sessionId,
                 'product_id'  => $product->id,
@@ -65,43 +77,113 @@ class CartController extends Controller
             ]);
         }
 
-        // 🔹 OPTIONAL: session cart (badge / quick count)
+        /*
+        |--------------------------------------------------------------------------
+        | Session Cart
+        |--------------------------------------------------------------------------
+        */
         $sessionCart = session()->get('cart', []);
+
         $sessionCart[$product->id] = [
             'id'    => $product->id,
             'name'  => $product->name,
             'qty'   => $qty,
             'price' => $product->price,
         ];
+
         session()->put('cart', $sessionCart);
 
         return response()->json([
             'success' => true,
-            'message' => 'Product added to cart successfully'
+            'message' => 'Product added to cart successfully',
         ]);
     }
 
     /*
     |--------------------------------------------------------------------------
-    | ❌ REMOVE CART ITEM (SESSION + DATABASE)
+    | UPDATE CART QUANTITY
     |--------------------------------------------------------------------------
-    | DELETE /cart/{id}
+    | PUT /api/cart/{id}
+    |--------------------------------------------------------------------------
     */
-    public function remove(Request $request, $id)
+    public function updateQuantity(Request $request, $id)
     {
-        // Remove from database
-        Cart::where('session_id', $request->session()->getId())
-            ->where('product_id', $id)
-            ->delete();
+        $request->validate([
+            'qty' => 'required|integer|min:1|max:5',
+        ]);
 
-        // Remove from session
+        $sessionId = $request->session()->getId();
+
+        $cartItem = Cart::where('session_id', $sessionId)
+            ->where('product_id', $id)
+            ->first();
+
+        if (!$cartItem) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cart item not found.',
+            ], 404);
+        }
+
+        $qty = (int) $request->qty;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Update quantity
+        |--------------------------------------------------------------------------
+        */
+        $cartItem->qty = $qty;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Recalculate total price
+        |--------------------------------------------------------------------------
+        */
+        $cartItem->total_price =
+            $cartItem->price * $qty;
+
+        $cartItem->save();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Update session cart
+        |--------------------------------------------------------------------------
+        */
         $cart = session()->get('cart', []);
-        unset($cart[$id]);
+
+        if (isset($cart[$id])) {
+            $cart[$id]['qty'] = $qty;
+        }
+
         session()->put('cart', $cart);
 
         return response()->json([
             'success' => true,
-            'message' => 'Product removed from cart'
+            'message' => 'Cart quantity updated successfully.',
+            'item' => $cartItem,
+        ]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | REMOVE CART ITEM
+    |--------------------------------------------------------------------------
+    */
+    public function remove(Request $request, $id)
+    {
+        Cart::where('session_id', $request->session()->getId())
+            ->where('product_id', $id)
+            ->delete();
+
+        $cart = session()->get('cart', []);
+
+        unset($cart[$id]);
+
+        session()->put('cart', $cart);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Product removed from cart',
         ]);
     }
 }

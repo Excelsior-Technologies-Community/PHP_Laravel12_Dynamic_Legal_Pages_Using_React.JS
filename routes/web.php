@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\LegalPageController;
-
+use App\Http\Controllers\WishlistController;
 
 /*
 |--------------------------------------------------------------------------
@@ -21,7 +21,28 @@ Route::prefix('api')->group(function () {
 
     Route::get('/cart', [CartController::class, 'index']);
     Route::post('/add-to-cart', [CartController::class, 'add']);
+    Route::put('/cart/{id}', [CartController::class, 'updateQuantity']);
     Route::delete('/cart/{id}', [CartController::class, 'remove']);
+
+    /*
+|--------------------------------------------------------------------------
+| Wishlist
+|--------------------------------------------------------------------------
+*/
+
+    Route::get('/wishlist', [WishlistController::class, 'index']);
+
+    Route::get('/wishlist/count', [WishlistController::class, 'count']);
+
+    Route::get('/wishlist/{product}/check', [WishlistController::class, 'check']);
+
+    Route::post('/wishlist/{product}', [WishlistController::class, 'add']);
+
+    Route::post('/wishlist/{product}/toggle', [WishlistController::class, 'toggle']);
+
+    Route::delete('/wishlist/{product}', [WishlistController::class, 'remove']);
+
+    Route::delete('/wishlist', [WishlistController::class, 'clear']);
 
     Route::get('/legal-pages', [LegalPageController::class, 'index']);
     Route::post('/legal-pages', [LegalPageController::class, 'store']);
