@@ -3,42 +3,63 @@ import axios from "axios";
 import { Link, useNavigate } from "react-router-dom";
 
 export default function Wishlist() {
-
     const navigate = useNavigate();
 
     const [wishlist, setWishlist] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+
     const [addingToCart, setAddingToCart] = useState(null);
     const [removingId, setRemovingId] = useState(null);
+    const [clearing, setClearing] = useState(false);
 
     /*
     |--------------------------------------------------------------------------
     | Load Wishlist
     |--------------------------------------------------------------------------
     */
+
     const fetchWishlist = async () => {
-
         try {
-
             setLoading(true);
+            setError("");
 
             const response = await axios.get("/api/wishlist");
 
-            setWishlist(response.data);
+            console.log("Wishlist API response:", response.data);
+
+            /*
+            |--------------------------------------------------------------------------
+            | Your WishlistController returns an array directly
+            |--------------------------------------------------------------------------
+            */
+
+            if (Array.isArray(response.data)) {
+                setWishlist(response.data);
+            } else {
+                setWishlist([]);
+            }
 
         } catch (error) {
-
             console.error(
                 "Failed to load wishlist:",
                 error
             );
 
+            setError(
+                error.response?.data?.message ||
+                "Failed to load wishlist."
+            );
         } finally {
-
             setLoading(false);
-
         }
     };
+
+    /*
+    |--------------------------------------------------------------------------
+    | Load Wishlist On Page Open
+    |--------------------------------------------------------------------------
+    */
 
     useEffect(() => {
         fetchWishlist();
@@ -46,13 +67,24 @@ export default function Wishlist() {
 
     /*
     |--------------------------------------------------------------------------
+    | Notify Wishlist Count
+    |--------------------------------------------------------------------------
+    */
+
+    const notifyWishlistUpdated = () => {
+        window.dispatchEvent(
+            new Event("wishlistUpdated")
+        );
+    };
+
+    /*
+    |--------------------------------------------------------------------------
     | Remove From Wishlist
     |--------------------------------------------------------------------------
     */
+
     const removeFromWishlist = async (productId) => {
-
         try {
-
             setRemovingId(productId);
 
             await axios.delete(
@@ -61,12 +93,15 @@ export default function Wishlist() {
 
             setWishlist((previous) =>
                 previous.filter(
-                    (product) => product.id !== productId
+                    (product) =>
+                        Number(product.id) !==
+                        Number(productId)
                 )
             );
 
-        } catch (error) {
+            notifyWishlistUpdated();
 
+        } catch (error) {
             console.error(
                 "Remove wishlist failed:",
                 error
@@ -76,39 +111,34 @@ export default function Wishlist() {
                 error.response?.data?.message ||
                 "Unable to remove product."
             );
-
         } finally {
-
             setRemovingId(null);
-
         }
     };
 
     /*
     |--------------------------------------------------------------------------
-    | Add Wishlist Product To Cart
+    | Add To Cart
     |--------------------------------------------------------------------------
     */
+
     const addToCart = async (product) => {
-
         try {
-
             setAddingToCart(product.id);
 
             await axios.post(
                 "/api/add-to-cart",
                 {
                     id: product.id,
-                    qty: 1
+                    qty: 1,
                 }
             );
 
             alert(
-                `${product.name} added to cart.`
+                `${product.name} added to cart successfully.`
             );
 
         } catch (error) {
-
             console.error(
                 "Add to cart failed:",
                 error
@@ -118,11 +148,8 @@ export default function Wishlist() {
                 error.response?.data?.message ||
                 "Unable to add product to cart."
             );
-
         } finally {
-
             setAddingToCart(null);
-
         }
     };
 
@@ -131,8 +158,8 @@ export default function Wishlist() {
     | Clear Wishlist
     |--------------------------------------------------------------------------
     */
-    const clearWishlist = async () => {
 
+    const clearWishlist = async () => {
         if (wishlist.length === 0) {
             return;
         }
@@ -146,13 +173,17 @@ export default function Wishlist() {
         }
 
         try {
+            setClearing(true);
 
-            await axios.delete("/api/wishlist");
+            await axios.delete(
+                "/api/wishlist"
+            );
 
             setWishlist([]);
 
-        } catch (error) {
+            notifyWishlistUpdated();
 
+        } catch (error) {
             console.error(
                 "Clear wishlist failed:",
                 error
@@ -162,7 +193,8 @@ export default function Wishlist() {
                 error.response?.data?.message ||
                 "Unable to clear wishlist."
             );
-
+        } finally {
+            setClearing(false);
         }
     };
 
@@ -171,34 +203,74 @@ export default function Wishlist() {
     | Loading
     |--------------------------------------------------------------------------
     */
+
     if (loading) {
-
         return (
-            <div className="container py-5">
+            <div className="bg-light min-vh-100">
+                <div className="container py-5">
 
-                <div className="text-center">
+                    <div className="text-center py-5">
 
-                    <div className="spinner-border text-primary"></div>
+                        <div className="spinner-border text-primary">
+                        </div>
 
-                    <p className="text-muted mt-3">
-                        Loading your wishlist...
-                    </p>
+                        <p className="text-muted mt-3">
+                            Loading your wishlist...
+                        </p>
+
+                    </div>
 
                 </div>
-
             </div>
         );
     }
 
-    return (
+    /*
+    |--------------------------------------------------------------------------
+    | Error
+    |--------------------------------------------------------------------------
+    */
 
+    if (error) {
+        return (
+            <div className="bg-light min-vh-100">
+                <div className="container py-5">
+
+                    <div className="alert alert-danger">
+
+                        <strong>
+                            Error:
+                        </strong>{" "}
+
+                        {error}
+
+                        <button
+                            type="button"
+                            className="btn btn-outline-danger btn-sm ms-3"
+                            onClick={fetchWishlist}
+                        >
+                            Retry
+                        </button>
+
+                    </div>
+
+                </div>
+            </div>
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Page
+    |--------------------------------------------------------------------------
+    */
+
+    return (
         <div className="bg-light min-vh-100">
 
             <div className="container py-5">
 
-                {/* =====================================================
-                    HEADER
-                ====================================================== */}
+                {/* HEADER */}
 
                 <div className="d-flex justify-content-between align-items-center mb-4">
 
@@ -210,7 +282,9 @@ export default function Wishlist() {
 
                         <p className="text-muted mb-0">
                             {wishlist.length} saved product
-                            {wishlist.length !== 1 ? "s" : ""}
+                            {wishlist.length !== 1
+                                ? "s"
+                                : ""}
                         </p>
 
                     </div>
@@ -219,10 +293,14 @@ export default function Wishlist() {
 
                         {wishlist.length > 0 && (
                             <button
+                                type="button"
                                 className="btn btn-outline-danger"
                                 onClick={clearWishlist}
+                                disabled={clearing}
                             >
-                                Clear Wishlist
+                                {clearing
+                                    ? "Clearing..."
+                                    : "Clear Wishlist"}
                             </button>
                         )}
 
@@ -237,10 +315,7 @@ export default function Wishlist() {
 
                 </div>
 
-
-                {/* =====================================================
-                    EMPTY WISHLIST
-                ====================================================== */}
+                {/* EMPTY */}
 
                 {wishlist.length === 0 ? (
 
@@ -250,7 +325,7 @@ export default function Wishlist() {
 
                             <div
                                 style={{
-                                    fontSize: "80px"
+                                    fontSize: "80px",
                                 }}
                             >
                                 🤍
@@ -266,8 +341,11 @@ export default function Wishlist() {
                             </p>
 
                             <button
+                                type="button"
                                 className="btn btn-primary btn-lg mt-3"
-                                onClick={() => navigate("/shop")}
+                                onClick={() =>
+                                    navigate("/shop")
+                                }
                             >
                                 Browse Products
                             </button>
@@ -278,9 +356,7 @@ export default function Wishlist() {
 
                 ) : (
 
-                    /* =================================================
-                       WISHLIST PRODUCTS
-                    ================================================== */
+                    /* PRODUCTS */
 
                     <div className="row g-4">
 
@@ -298,20 +374,27 @@ export default function Wishlist() {
                                     <div
                                         className="position-relative"
                                         style={{
-                                            background: "#f8f9fa"
+                                            background:
+                                                "#f8f9fa",
                                         }}
                                     >
 
                                         <img
                                             src={`/images/${product.image}`}
-                                            alt={product.name}
+                                            alt={
+                                                product.name ||
+                                                "Product"
+                                            }
                                             className="card-img-top"
                                             style={{
                                                 height: "220px",
-                                                objectFit: "contain",
-                                                padding: "15px"
+                                                objectFit:
+                                                    "contain",
+                                                padding: "15px",
                                             }}
                                         />
+
+                                        {/* HEART */}
 
                                         <button
                                             type="button"
@@ -322,21 +405,34 @@ export default function Wishlist() {
                                                 )
                                             }
                                             disabled={
-                                                removingId === product.id
+                                                removingId ===
+                                                product.id
                                             }
                                             title="Remove from wishlist"
+                                            style={{
+                                                width: "42px",
+                                                height: "42px",
+                                                padding: 0,
+                                                fontSize: "18px",
+                                            }}
                                         >
-                                            {removingId === product.id
+                                            {removingId ===
+                                            product.id
                                                 ? "..."
                                                 : "❤️"}
                                         </button>
 
-                                        <span className="position-absolute top-0 start-0 m-2 badge bg-primary">
-                                            {product.category}
-                                        </span>
+                                        {/* CATEGORY */}
+
+                                        {product.category && (
+                                            <span className="position-absolute top-0 start-0 m-2 badge bg-primary">
+                                                {
+                                                    product.category
+                                                }
+                                            </span>
+                                        )}
 
                                     </div>
-
 
                                     {/* BODY */}
 
@@ -344,46 +440,71 @@ export default function Wishlist() {
 
                                         <h5
                                             className="fw-semibold text-truncate"
-                                            title={product.name}
+                                            title={
+                                                product.name
+                                            }
                                         >
                                             {product.name}
                                         </h5>
 
                                         <p
-                                            className="text-muted small"
+                                            className="text-muted small mb-2"
                                             style={{
-                                                display: "-webkit-box",
+                                                display:
+                                                    "-webkit-box",
                                                 WebkitLineClamp: 2,
-                                                WebkitBoxOrient: "vertical",
-                                                overflow: "hidden"
+                                                WebkitBoxOrient:
+                                                    "vertical",
+                                                overflow:
+                                                    "hidden",
                                             }}
                                         >
                                             {product.details}
                                         </p>
 
+                                        {/* SIZE / COLOR */}
+
                                         <div className="mb-2">
 
-                                            <span className="badge bg-light text-dark border me-1">
-                                                Size: {product.size}
-                                            </span>
+                                            {product.size && (
+                                                <span className="badge bg-light text-dark border me-1">
+                                                    Size:{" "}
+                                                    {
+                                                        product.size
+                                                    }
+                                                </span>
+                                            )}
 
-                                            <span className="badge bg-light text-dark border">
-                                                Color: {product.color}
-                                            </span>
+                                            {product.color && (
+                                                <span className="badge bg-light text-dark border">
+                                                    Color:{" "}
+                                                    {
+                                                        product.color
+                                                    }
+                                                </span>
+                                            )}
 
                                         </div>
 
-                                        <h5 className="text-success fw-bold">
+                                        {/* PRICE */}
+
+                                        <h5 className="text-success fw-bold mb-3">
+
                                             ₹{" "}
+
                                             {parseFloat(
-                                                product.price
+                                                product.price ||
+                                                    0
                                             ).toFixed(2)}
+
                                         </h5>
 
+                                        {/* BUTTONS */}
 
                                         <div className="mt-auto d-grid gap-2">
 
                                             <button
+                                                type="button"
                                                 className="btn btn-outline-primary btn-sm"
                                                 onClick={() =>
                                                     navigate(
@@ -395,13 +516,16 @@ export default function Wishlist() {
                                             </button>
 
                                             <button
+                                                type="button"
                                                 className="btn btn-primary btn-sm"
                                                 disabled={
                                                     addingToCart ===
                                                     product.id
                                                 }
                                                 onClick={() =>
-                                                    addToCart(product)
+                                                    addToCart(
+                                                        product
+                                                    )
                                                 }
                                             >
                                                 {addingToCart ===
@@ -411,6 +535,7 @@ export default function Wishlist() {
                                             </button>
 
                                             <button
+                                                type="button"
                                                 className="btn btn-outline-danger btn-sm"
                                                 disabled={
                                                     removingId ===
@@ -422,7 +547,10 @@ export default function Wishlist() {
                                                     )
                                                 }
                                             >
-                                                Remove
+                                                {removingId ===
+                                                product.id
+                                                    ? "Removing..."
+                                                    : "Remove"}
                                             </button>
 
                                         </div>

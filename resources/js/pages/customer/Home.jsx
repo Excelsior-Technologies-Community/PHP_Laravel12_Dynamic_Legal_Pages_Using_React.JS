@@ -24,15 +24,9 @@ export default function Home() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
-    /*
-    |--------------------------------------------------------------------------
-    | Wishlist State
-    |--------------------------------------------------------------------------
-    */
-
+    // Wishlist
     const [wishlistIds, setWishlistIds] = useState([]);
     const [wishlistLoading, setWishlistLoading] = useState(null);
-
 
     /*
     |--------------------------------------------------------------------------
@@ -74,41 +68,37 @@ export default function Home() {
             params.sort_by = sortBy;
             params.sort_order = sortOrder;
 
-            const response = await axios.get(
-                "/api/products",
-                {
-                    params
-                }
-            );
+           const response = await axios.get("/products-data", {
+    params: params,
+});
 
-            setProducts(response.data);
+const productsData = Array.isArray(response.data)
+    ? response.data
+    : response.data.data || [];
+            setProducts(productsData);
 
             const defaultQty = {};
 
-            response.data.forEach((product) => {
+            productsData.forEach((product) => {
                 defaultQty[product.id] = 1;
             });
 
             setQty(defaultQty);
 
         } catch (err) {
-
             console.error(
                 "Failed to load products:",
                 err
             );
 
             setError(
+                err.response?.data?.message ||
                 "Failed to load products. Please try again."
             );
-
         } finally {
-
             setLoading(false);
-
         }
     };
-
 
     /*
     |--------------------------------------------------------------------------
@@ -117,29 +107,41 @@ export default function Home() {
     */
 
     const fetchWishlistIds = async () => {
-
         try {
+            const response = await axios.get("/api/wishlist");
 
-            const response = await axios.get(
-                "/api/wishlist"
-            );
+            /*
+            |--------------------------------------------------------------------------
+            | Wishlist API may return:
+            |
+            | []
+            |
+            | OR
+            |
+            | { data: [] }
+            |--------------------------------------------------------------------------
+            */
 
-            const ids = response.data.map(
-                (product) => product.id
-            );
+            const wishlistData = Array.isArray(response.data)
+                ? response.data
+                : response.data.data || response.data.items || [];
+
+            const ids = wishlistData.map((product) => {
+                return Number(
+                    product.id ||
+                    product.product_id
+                );
+            });
 
             setWishlistIds(ids);
 
         } catch (err) {
-
             console.error(
                 "Failed to load wishlist:",
                 err
             );
-
         }
     };
-
 
     /*
     |--------------------------------------------------------------------------
@@ -148,13 +150,11 @@ export default function Home() {
     */
 
     useEffect(() => {
-
         const timer = setTimeout(() => {
             fetchProducts();
         }, 300);
 
         return () => clearTimeout(timer);
-
     }, [
         searchQuery,
         selectedCategories,
@@ -163,9 +163,8 @@ export default function Home() {
         minPrice,
         maxPrice,
         sortBy,
-        sortOrder
+        sortOrder,
     ]);
-
 
     /*
     |--------------------------------------------------------------------------
@@ -174,11 +173,8 @@ export default function Home() {
     */
 
     useEffect(() => {
-
         fetchWishlistIds();
-
     }, []);
-
 
     /*
     |--------------------------------------------------------------------------
@@ -187,9 +183,7 @@ export default function Home() {
     */
 
     const toggleWishlist = async (productId) => {
-
         try {
-
             setWishlistLoading(productId);
 
             const response = await axios.post(
@@ -197,41 +191,30 @@ export default function Home() {
             );
 
             if (response.data.wishlisted) {
-
                 setWishlistIds((previous) => {
-
                     if (previous.includes(productId)) {
                         return previous;
                     }
 
                     return [
                         ...previous,
-                        productId
+                        productId,
                     ];
                 });
-
             } else {
-
                 setWishlistIds((previous) =>
                     previous.filter(
                         (id) => id !== productId
                     )
                 );
-
             }
 
-            /*
-            |--------------------------------------------------------------------------
-            | Notify MainLayout Wishlist Count
-            |--------------------------------------------------------------------------
-            */
-
+            // Notify MainLayout
             window.dispatchEvent(
                 new Event("wishlistUpdated")
             );
 
         } catch (err) {
-
             console.error(
                 "Wishlist update failed:",
                 err
@@ -241,14 +224,10 @@ export default function Home() {
                 err.response?.data?.message ||
                 "Unable to update wishlist."
             );
-
         } finally {
-
             setWishlistLoading(null);
-
         }
     };
-
 
     /*
     |--------------------------------------------------------------------------
@@ -257,49 +236,40 @@ export default function Home() {
     */
 
     const categories = useMemo(() => {
-
         return [
             ...new Set(
                 products.map(
                     (product) => product.category
                 )
-            )
+            ),
         ]
             .filter(Boolean)
             .sort();
-
     }, [products]);
 
-
     const colors = useMemo(() => {
-
         return [
             ...new Set(
                 products.map(
                     (product) => product.color
                 )
-            )
+            ),
         ]
             .filter(Boolean)
             .sort();
-
     }, [products]);
 
-
     const sizes = useMemo(() => {
-
         return [
             ...new Set(
                 products.map(
                     (product) => product.size
                 )
-            )
+            ),
         ]
             .filter(Boolean)
             .sort();
-
     }, [products]);
-
 
     /*
     |--------------------------------------------------------------------------
@@ -312,29 +282,23 @@ export default function Home() {
         selected,
         setter
     ) => {
-
         if (selected.includes(value)) {
-
             setter(
                 selected.filter(
                     (item) => item !== value
                 )
             );
-
         } else {
-
             setter([
                 ...selected,
-                value
+                value,
             ]);
-
         }
     };
 
-
     /*
     |--------------------------------------------------------------------------
-    | Quantity For Add To Cart
+    | Quantity
     |--------------------------------------------------------------------------
     */
 
@@ -342,7 +306,6 @@ export default function Home() {
         productId,
         value
     ) => {
-
         let newQty = parseInt(value);
 
         if (isNaN(newQty)) {
@@ -356,10 +319,9 @@ export default function Home() {
 
         setQty((previous) => ({
             ...previous,
-            [productId]: newQty
+            [productId]: newQty,
         }));
     };
-
 
     /*
     |--------------------------------------------------------------------------
@@ -368,24 +330,48 @@ export default function Home() {
     */
 
     const addToCart = async (product) => {
-
         try {
+            const selectedQty =
+                qty[product.id] || 1;
+
+            /*
+            |--------------------------------------------------------------------------
+            | Stock check on frontend
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                product.stock !== undefined &&
+                Number(product.stock) <= 0
+            ) {
+                alert("Product is out of stock.");
+                return;
+            }
+
+            if (
+                product.stock !== undefined &&
+                selectedQty > Number(product.stock)
+            ) {
+                alert(
+                    `Only ${product.stock} item(s) available in stock.`
+                );
+                return;
+            }
 
             await axios.post(
                 "/api/add-to-cart",
                 {
                     id: product.id,
-                    qty: qty[product.id] || 1
+                    qty: selectedQty,
                 }
             );
 
             setAdded((previous) => ({
                 ...previous,
-                [product.id]: true
+                [product.id]: true,
             }));
 
         } catch (err) {
-
             console.error(
                 "Add to cart failed:",
                 err
@@ -395,46 +381,34 @@ export default function Home() {
                 err.response?.data?.message ||
                 "Unable to add product to cart."
             );
-
         }
     };
 
-
     /*
     |--------------------------------------------------------------------------
-    | Clear All Filters
+    | Clear Filters
     |--------------------------------------------------------------------------
     */
 
     const clearFilters = () => {
-
         setSearchQuery("");
-
         setSelectedCategories([]);
-
         setSelectedColors([]);
-
         setSelectedSizes([]);
-
         setMinPrice("");
-
         setMaxPrice("");
-
         setSortBy("created_at");
-
         setSortOrder("desc");
-
     };
-
 
     /*
     |--------------------------------------------------------------------------
-    | Check Active Filters
+    | Active Filters
     |--------------------------------------------------------------------------
     */
 
     const hasFilters =
-        searchQuery ||
+        searchQuery.trim() !== "" ||
         selectedCategories.length > 0 ||
         selectedColors.length > 0 ||
         selectedSizes.length > 0 ||
@@ -443,9 +417,13 @@ export default function Home() {
         sortBy !== "created_at" ||
         sortOrder !== "desc";
 
+    /*
+    |--------------------------------------------------------------------------
+    | Render
+    |--------------------------------------------------------------------------
+    */
 
     return (
-
         <div className="bg-light min-vh-100">
 
             {/* =========================================================
@@ -453,7 +431,6 @@ export default function Home() {
             ========================================================== */}
 
             <div className="bg-primary text-white py-5 mb-4">
-
                 <div className="container">
 
                     <h1 className="display-5 fw-bold mb-3">
@@ -480,7 +457,6 @@ export default function Home() {
                         />
 
                         {searchQuery && (
-
                             <button
                                 className="btn btn-light"
                                 onClick={() =>
@@ -489,13 +465,11 @@ export default function Home() {
                             >
                                 ✕
                             </button>
-
                         )}
 
                     </div>
 
                 </div>
-
             </div>
 
 
@@ -512,7 +486,6 @@ export default function Home() {
                         <div className="d-flex justify-content-between align-items-center mb-4">
 
                             <div>
-
                                 <h4 className="fw-bold mb-1">
                                     Advanced Filters
                                 </h4>
@@ -521,18 +494,15 @@ export default function Home() {
                                     Filter products by category,
                                     color, size and price.
                                 </small>
-
                             </div>
 
                             {hasFilters && (
-
                                 <button
                                     className="btn btn-outline-danger btn-sm"
                                     onClick={clearFilters}
                                 >
                                     Clear All Filters
                                 </button>
-
                             )}
 
                         </div>
@@ -550,30 +520,34 @@ export default function Home() {
 
                                 <div className="d-flex flex-wrap gap-2">
 
-                                    {categories.map(
-                                        (category) => (
-
-                                            <button
-                                                key={category}
-                                                type="button"
-                                                className={`btn btn-sm ${
-                                                    selectedCategories.includes(
-                                                        category
-                                                    )
-                                                        ? "btn-primary"
-                                                        : "btn-outline-primary"
-                                                }`}
-                                                onClick={() =>
-                                                    toggleFilter(
-                                                        category,
-                                                        selectedCategories,
-                                                        setSelectedCategories
-                                                    )
-                                                }
-                                            >
-                                                {category}
-                                            </button>
-
+                                    {categories.length === 0 ? (
+                                        <small className="text-muted">
+                                            No categories available
+                                        </small>
+                                    ) : (
+                                        categories.map(
+                                            (category) => (
+                                                <button
+                                                    key={category}
+                                                    type="button"
+                                                    className={`btn btn-sm ${
+                                                        selectedCategories.includes(
+                                                            category
+                                                        )
+                                                            ? "btn-primary"
+                                                            : "btn-outline-primary"
+                                                    }`}
+                                                    onClick={() =>
+                                                        toggleFilter(
+                                                            category,
+                                                            selectedCategories,
+                                                            setSelectedCategories
+                                                        )
+                                                    }
+                                                >
+                                                    {category}
+                                                </button>
+                                            )
                                         )
                                     )}
 
@@ -592,30 +566,34 @@ export default function Home() {
 
                                 <div className="d-flex flex-wrap gap-2">
 
-                                    {colors.map(
-                                        (color) => (
-
-                                            <button
-                                                key={color}
-                                                type="button"
-                                                className={`btn btn-sm ${
-                                                    selectedColors.includes(
-                                                        color
-                                                    )
-                                                        ? "btn-dark"
-                                                        : "btn-outline-dark"
-                                                }`}
-                                                onClick={() =>
-                                                    toggleFilter(
-                                                        color,
-                                                        selectedColors,
-                                                        setSelectedColors
-                                                    )
-                                                }
-                                            >
-                                                {color}
-                                            </button>
-
+                                    {colors.length === 0 ? (
+                                        <small className="text-muted">
+                                            No colors available
+                                        </small>
+                                    ) : (
+                                        colors.map(
+                                            (color) => (
+                                                <button
+                                                    key={color}
+                                                    type="button"
+                                                    className={`btn btn-sm ${
+                                                        selectedColors.includes(
+                                                            color
+                                                        )
+                                                            ? "btn-dark"
+                                                            : "btn-outline-dark"
+                                                    }`}
+                                                    onClick={() =>
+                                                        toggleFilter(
+                                                            color,
+                                                            selectedColors,
+                                                            setSelectedColors
+                                                        )
+                                                    }
+                                                >
+                                                    {color}
+                                                </button>
+                                            )
                                         )
                                     )}
 
@@ -634,30 +612,34 @@ export default function Home() {
 
                                 <div className="d-flex flex-wrap gap-2">
 
-                                    {sizes.map(
-                                        (size) => (
-
-                                            <button
-                                                key={size}
-                                                type="button"
-                                                className={`btn btn-sm ${
-                                                    selectedSizes.includes(
-                                                        size
-                                                    )
-                                                        ? "btn-success"
-                                                        : "btn-outline-success"
-                                                }`}
-                                                onClick={() =>
-                                                    toggleFilter(
-                                                        size,
-                                                        selectedSizes,
-                                                        setSelectedSizes
-                                                    )
-                                                }
-                                            >
-                                                {size}
-                                            </button>
-
+                                    {sizes.length === 0 ? (
+                                        <small className="text-muted">
+                                            No sizes available
+                                        </small>
+                                    ) : (
+                                        sizes.map(
+                                            (size) => (
+                                                <button
+                                                    key={size}
+                                                    type="button"
+                                                    className={`btn btn-sm ${
+                                                        selectedSizes.includes(
+                                                            size
+                                                        )
+                                                            ? "btn-success"
+                                                            : "btn-outline-success"
+                                                    }`}
+                                                    onClick={() =>
+                                                        toggleFilter(
+                                                            size,
+                                                            selectedSizes,
+                                                            setSelectedSizes
+                                                        )
+                                                    }
+                                                >
+                                                    {size}
+                                                </button>
+                                            )
                                         )
                                     )}
 
@@ -736,7 +718,6 @@ export default function Home() {
                                                 )
                                             }
                                         >
-
                                             <option value="created_at">
                                                 Date
                                             </option>
@@ -751,6 +732,10 @@ export default function Home() {
 
                                             <option value="id">
                                                 Product ID
+                                            </option>
+
+                                            <option value="stock">
+                                                Stock
                                             </option>
 
                                         </select>
@@ -812,11 +797,9 @@ export default function Home() {
                     </div>
 
                     {hasFilters && (
-
                         <span className="badge bg-primary fs-6">
                             Filters Active
                         </span>
-
                     )}
 
                 </div>
@@ -827,7 +810,6 @@ export default function Home() {
                 ====================================================== */}
 
                 {loading && (
-
                     <div className="text-center py-5">
 
                         <div className="spinner-border text-primary"></div>
@@ -837,7 +819,6 @@ export default function Home() {
                         </p>
 
                     </div>
-
                 )}
 
 
@@ -846,7 +827,6 @@ export default function Home() {
                 ====================================================== */}
 
                 {!loading && error && (
-
                     <div className="alert alert-danger">
 
                         {error}
@@ -859,7 +839,6 @@ export default function Home() {
                         </button>
 
                     </div>
-
                 )}
 
 
@@ -870,10 +849,13 @@ export default function Home() {
                 {!loading &&
                     !error &&
                     products.length === 0 && (
-
                         <div className="text-center py-5">
 
-                            <div style={{ fontSize: "70px" }}>
+                            <div
+                                style={{
+                                    fontSize: "70px",
+                                }}
+                            >
                                 📦
                             </div>
 
@@ -894,7 +876,6 @@ export default function Home() {
                             </button>
 
                         </div>
-
                     )}
 
 
@@ -908,228 +889,286 @@ export default function Home() {
 
                         <div className="row g-4">
 
-                            {products.map((product) => (
+                            {products.map((product) => {
 
-                                <div
-                                    className="col-12 col-sm-6 col-md-4 col-lg-3"
-                                    key={product.id}
-                                >
+                                const productStock =
+                                    Number(product.stock ?? 0);
 
-                                    <div className="card h-100 shadow-sm border-0 product-card-hover">
+                                const isOutOfStock =
+                                    productStock <= 0;
 
+                                const selectedQty =
+                                    qty[product.id] || 1;
 
-                                        {/* =================================================
-                                            PRODUCT IMAGE + WISHLIST
-                                        ================================================== */}
+                                return (
+                                    <div
+                                        className="col-12 col-sm-6 col-md-4 col-lg-3"
+                                        key={product.id}
+                                    >
 
-                                        <div className="position-relative">
+                                        <div className="card h-100 shadow-sm border-0">
 
-                                            <img
-                                                src={`/images/${product.image}`}
-                                                className="card-img-top product-image"
-                                                alt={product.name}
-                                                style={{
-                                                    height: "220px",
-                                                    objectFit: "contain",
-                                                    background: "#f8f9fa",
-                                                    padding: "15px"
-                                                }}
-                                            />
+                                            {/* IMAGE */}
 
+                                            <div className="position-relative">
 
-                                            {/* Wishlist Button */}
+                                                <img
+                                                    src={`/images/${product.image}`}
+                                                    className="card-img-top product-image"
+                                                    alt={product.name}
+                                                    style={{
+                                                        height: "220px",
+                                                        objectFit: "contain",
+                                                        background: "#f8f9fa",
+                                                        padding: "15px",
+                                                    }}
+                                                />
 
-                                            <button
-                                                type="button"
-                                                className={`btn position-absolute top-0 end-0 m-2 rounded-circle shadow-sm ${
-                                                    wishlistIds.includes(
+                                                {/* Wishlist */}
+
+                                                <button
+                                                    type="button"
+                                                    className={`btn position-absolute top-0 end-0 m-2 rounded-circle shadow-sm ${
+                                                        wishlistIds.includes(
+                                                            product.id
+                                                        )
+                                                            ? "btn-danger"
+                                                            : "btn-light"
+                                                    }`}
+                                                    onClick={() =>
+                                                        toggleWishlist(
+                                                            product.id
+                                                        )
+                                                    }
+                                                    disabled={
+                                                        wishlistLoading ===
                                                         product.id
-                                                    )
-                                                        ? "btn-danger"
-                                                        : "btn-light"
-                                                }`}
-                                                onClick={() =>
-                                                    toggleWishlist(
-                                                        product.id
-                                                    )
-                                                }
-                                                disabled={
-                                                    wishlistLoading ===
+                                                    }
+                                                    title={
+                                                        wishlistIds.includes(
+                                                            product.id
+                                                        )
+                                                            ? "Remove from wishlist"
+                                                            : "Add to wishlist"
+                                                    }
+                                                    style={{
+                                                        width: "42px",
+                                                        height: "42px",
+                                                        fontSize: "20px",
+                                                        padding: 0,
+                                                    }}
+                                                >
+
+                                                    {wishlistLoading ===
                                                     product.id
-                                                }
-                                                title={
-                                                    wishlistIds.includes(
-                                                        product.id
-                                                    )
-                                                        ? "Remove from wishlist"
-                                                        : "Add to wishlist"
-                                                }
-                                                style={{
-                                                    width: "42px",
-                                                    height: "42px",
-                                                    fontSize: "20px",
-                                                    padding: 0
-                                                }}
-                                            >
+                                                        ? "..."
+                                                        : wishlistIds.includes(
+                                                            product.id
+                                                        )
+                                                            ? "❤️"
+                                                            : "🤍"}
 
-                                                {wishlistLoading ===
-                                                product.id
-                                                    ? "..."
-                                                    : wishlistIds.includes(
-                                                        product.id
-                                                    )
-                                                        ? "❤️"
-                                                        : "🤍"}
-
-                                            </button>
+                                                </button>
 
 
-                                            {/* Category */}
+                                                {/* Category */}
 
-                                            <span className="position-absolute top-0 start-0 m-2 badge bg-primary">
-                                                {product.category}
-                                            </span>
-
-                                        </div>
-
-
-                                        {/* =================================================
-                                            PRODUCT DETAILS
-                                        ================================================== */}
-
-                                        <div className="card-body d-flex flex-column">
-
-                                            <h5
-                                                className="card-title fw-semibold text-truncate"
-                                                title={product.name}
-                                            >
-                                                {product.name}
-                                            </h5>
-
-
-                                            <p
-                                                className="text-muted small mb-2"
-                                                style={{
-                                                    display: "-webkit-box",
-                                                    WebkitLineClamp: 2,
-                                                    WebkitBoxOrient: "vertical",
-                                                    overflow: "hidden"
-                                                }}
-                                            >
-                                                {product.details}
-                                            </p>
-
-
-                                            <div className="mb-2">
-
-                                                <span className="badge bg-light text-dark border me-1">
-                                                    Size: {product.size}
-                                                </span>
-
-                                                <span className="badge bg-light text-dark border">
-                                                    Color: {product.color}
-                                                </span>
+                                                {product.category && (
+                                                    <span className="position-absolute top-0 start-0 m-2 badge bg-primary">
+                                                        {product.category}
+                                                    </span>
+                                                )}
 
                                             </div>
 
 
-                                            <div className="mt-auto">
+                                            {/* DETAILS */}
 
-                                                <div className="d-flex justify-content-between align-items-center mb-2">
+                                            <div className="card-body d-flex flex-column">
 
-                                                    <h5 className="text-success fw-bold mb-0">
-                                                        ₹ {product.price}
-                                                    </h5>
+                                                <h5
+                                                    className="card-title fw-semibold text-truncate"
+                                                    title={product.name}
+                                                >
+                                                    {product.name}
+                                                </h5>
 
-                                                </div>
 
+                                                <p
+                                                    className="text-muted small mb-2"
+                                                    style={{
+                                                        display:
+                                                            "-webkit-box",
+                                                        WebkitLineClamp: 2,
+                                                        WebkitBoxOrient:
+                                                            "vertical",
+                                                        overflow:
+                                                            "hidden",
+                                                    }}
+                                                >
+                                                    {product.details}
+                                                </p>
 
-                                                {/* Quantity */}
 
                                                 <div className="mb-2">
 
-                                                    <label className="form-label small fw-semibold">
-                                                        Quantity
-                                                    </label>
+                                                    {product.size && (
+                                                        <span className="badge bg-light text-dark border me-1">
+                                                            Size:{" "}
+                                                            {product.size}
+                                                        </span>
+                                                    )}
 
-                                                    <select
-                                                        className="form-select form-select-sm"
-                                                        value={
-                                                            qty[
-                                                                product.id
-                                                            ] || 1
-                                                        }
-                                                        onChange={(e) =>
-                                                            changeQty(
-                                                                product.id,
-                                                                e.target.value
-                                                            )
-                                                        }
-                                                    >
-
-                                                        {[1, 2, 3, 4, 5].map(
-                                                            (number) => (
-
-                                                                <option
-                                                                    key={number}
-                                                                    value={
-                                                                        number
-                                                                    }
-                                                                >
-                                                                    {number}
-                                                                </option>
-
-                                                            )
-                                                        )}
-
-                                                    </select>
+                                                    {product.color && (
+                                                        <span className="badge bg-light text-dark border">
+                                                            Color:{" "}
+                                                            {product.color}
+                                                        </span>
+                                                    )}
 
                                                 </div>
 
 
-                                                {/* Buttons */}
+                                                {/* PRICE */}
 
-                                                <div className="d-grid gap-2">
+                                                <div className="mt-auto">
 
-                                                    <button
-                                                        className="btn btn-outline-primary btn-sm"
-                                                        onClick={() =>
-                                                            navigate(
-                                                                `/product/${product.id}`
-                                                            )
-                                                        }
-                                                    >
-                                                        View Details
-                                                    </button>
+                                                    <div className="d-flex justify-content-between align-items-center mb-2">
+
+                                                        <h5 className="text-success fw-bold mb-0">
+                                                            ₹{" "}
+                                                            {parseFloat(
+                                                                product.price ||
+                                                                0
+                                                            ).toFixed(2)}
+                                                        </h5>
+
+                                                    </div>
 
 
-                                                    {added[product.id] ? (
+                                                    {/* STOCK */}
+
+                                                    <div className="mb-2">
+
+                                                        {isOutOfStock ? (
+                                                            <span className="badge bg-danger">
+                                                                Out of Stock
+                                                            </span>
+                                                        ) : (
+                                                            <span className="badge bg-success">
+                                                                {productStock}{" "}
+                                                                in stock
+                                                            </span>
+                                                        )}
+
+                                                    </div>
+
+
+                                                    {/* QUANTITY */}
+
+                                                    {!isOutOfStock && (
+                                                        <div className="mb-2">
+
+                                                            <label className="form-label small fw-semibold">
+                                                                Quantity
+                                                            </label>
+
+                                                            <select
+                                                                className="form-select form-select-sm"
+                                                                value={
+                                                                    selectedQty
+                                                                }
+                                                                onChange={(e) =>
+                                                                    changeQty(
+                                                                        product.id,
+                                                                        e.target.value
+                                                                    )
+                                                                }
+                                                            >
+
+                                                                {[1, 2, 3, 4, 5]
+                                                                    .filter(
+                                                                        (number) =>
+                                                                            number <=
+                                                                            productStock
+                                                                    )
+                                                                    .map(
+                                                                        (
+                                                                            number
+                                                                        ) => (
+                                                                            <option
+                                                                                key={
+                                                                                    number
+                                                                                }
+                                                                                value={
+                                                                                    number
+                                                                                }
+                                                                            >
+                                                                                {
+                                                                                    number
+                                                                                }
+                                                                            </option>
+                                                                        )
+                                                                    )}
+
+                                                            </select>
+
+                                                        </div>
+                                                    )}
+
+
+                                                    {/* BUTTONS */}
+
+                                                    <div className="d-grid gap-2">
 
                                                         <button
-                                                            className="btn btn-success btn-sm"
+                                                            className="btn btn-outline-primary btn-sm"
                                                             onClick={() =>
                                                                 navigate(
-                                                                    "/cart"
+                                                                    `/product/${product.id}`
                                                                 )
                                                             }
                                                         >
-                                                            ✓ Added - View Cart
+                                                            View Details
                                                         </button>
 
-                                                    ) : (
 
-                                                        <button
-                                                            className="btn btn-primary btn-sm"
-                                                            onClick={() =>
-                                                                addToCart(
-                                                                    product
-                                                                )
-                                                            }
-                                                        >
-                                                            Add to Cart
-                                                        </button>
+                                                        {added[
+                                                            product.id
+                                                        ] ? (
 
-                                                    )}
+                                                            <button
+                                                                className="btn btn-success btn-sm"
+                                                                onClick={() =>
+                                                                    navigate(
+                                                                        "/cart"
+                                                                    )
+                                                                }
+                                                            >
+                                                                ✓ Added - View Cart
+                                                            </button>
+
+                                                        ) : (
+
+                                                            <button
+                                                                className="btn btn-primary btn-sm"
+                                                                disabled={
+                                                                    isOutOfStock
+                                                                }
+                                                                onClick={() =>
+                                                                    addToCart(
+                                                                        product
+                                                                    )
+                                                                }
+                                                            >
+                                                                {isOutOfStock
+                                                                    ? "Out of Stock"
+                                                                    : "Add to Cart"}
+                                                            </button>
+
+                                                        )}
+
+                                                    </div>
 
                                                 </div>
 
@@ -1138,13 +1177,10 @@ export default function Home() {
                                         </div>
 
                                     </div>
-
-                                </div>
-
-                            ))}
+                                );
+                            })}
 
                         </div>
-
                     )}
 
             </div>

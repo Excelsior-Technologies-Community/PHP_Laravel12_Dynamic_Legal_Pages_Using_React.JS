@@ -2,13 +2,10 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Product extends Model
 {
-    use HasFactory;
-
     protected $fillable = [
         'name',
         'details',
@@ -16,6 +13,14 @@ class Product extends Model
         'image',
         'size',
         'color',
-        'category'
+        'category',
+        'featured',
+        'stock',
+    ];
+
+    protected $casts = [
+        'featured' => 'boolean',
+        'stock' => 'integer',
+        'price' => 'decimal:2',
     ];
 }

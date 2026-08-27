@@ -11,7 +11,7 @@ export default function ProductDetail() {
     const [added, setAdded] = useState(false);
 
     useEffect(() => {
-        axios.get("/api/products")
+        axios.get("/products-data")
             .then((res) => {
                 const found = res.data.find(p => p.id == id);
                 setProduct(found);

@@ -1,12 +1,18 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
 import { Link } from "react-router-dom";
+import axios from "axios";
 
 export default function Cart() {
-
     const [cart, setCart] = useState([]);
+    const [summary, setSummary] = useState({
+        total_items: 0,
+        total_quantity: 0,
+        subtotal: 0,
+    });
+
     const [loading, setLoading] = useState(true);
     const [updatingId, setUpdatingId] = useState(null);
+    const [removingId, setRemovingId] = useState(null);
     const [error, setError] = useState("");
 
     /*
@@ -14,32 +20,52 @@ export default function Cart() {
     | Load Cart
     |--------------------------------------------------------------------------
     */
+
     const fetchCart = async () => {
-
         try {
-
             setLoading(true);
             setError("");
 
             const response = await axios.get("/api/cart");
 
-            setCart(response.data);
+            /*
+            |--------------------------------------------------------------------------
+            | Laravel response:
+            |
+            | {
+            |     success: true,
+            |     items: [...],
+            |     summary: {...}
+            | }
+            |--------------------------------------------------------------------------
+            */
 
+            setCart(response.data.items || []);
+
+            setSummary(
+                response.data.summary || {
+                    total_items: 0,
+                    total_quantity: 0,
+                    subtotal: 0,
+                }
+            );
         } catch (err) {
-
             console.error("Failed to load cart:", err);
 
             setError(
                 err.response?.data?.message ||
-                "Failed to load cart."
+                    "Failed to load cart. Please try again."
             );
-
         } finally {
-
             setLoading(false);
-
         }
     };
+
+    /*
+    |--------------------------------------------------------------------------
+    | Initial Load
+    |--------------------------------------------------------------------------
+    */
 
     useEffect(() => {
         fetchCart();
@@ -47,23 +73,47 @@ export default function Cart() {
 
     /*
     |--------------------------------------------------------------------------
+    | Recalculate Summary
+    |--------------------------------------------------------------------------
+    */
+
+    const updateLocalSummary = (items) => {
+        const totalQuantity = items.reduce(
+            (sum, item) => sum + parseInt(item.qty || 0),
+            0
+        );
+
+        const subtotal = items.reduce(
+            (sum, item) =>
+                sum + parseFloat(item.total_price || 0),
+            0
+        );
+
+        setSummary({
+            total_items: items.length,
+            total_quantity: totalQuantity,
+            subtotal: subtotal,
+        });
+    };
+
+    /*
+    |--------------------------------------------------------------------------
     | Update Quantity
     |--------------------------------------------------------------------------
     */
-    const updateQuantity = async (productId, newQuantity) => {
 
+    const updateQuantity = async (productId, newQuantity) => {
         if (newQuantity < 1 || newQuantity > 5) {
             return;
         }
 
         try {
-
             setUpdatingId(productId);
 
             const response = await axios.put(
                 `/api/cart/${productId}`,
                 {
-                    qty: newQuantity
+                    qty: newQuantity,
                 }
             );
 
@@ -72,31 +122,37 @@ export default function Cart() {
             | Update item locally
             |--------------------------------------------------------------------------
             */
-            setCart((previousCart) =>
-                previousCart.map((item) =>
-                    item.product_id === productId
-                        ? {
+
+            setCart((previousCart) => {
+                const updatedCart = previousCart.map((item) => {
+                    if (item.product_id === productId) {
+                        return {
                             ...item,
                             qty: response.data.item.qty,
-                            total_price: response.data.item.total_price
-                        }
-                        : item
-                )
-            );
+                            total_price:
+                                response.data.item.total_price,
+                        };
+                    }
 
+                    return item;
+                });
+
+                updateLocalSummary(updatedCart);
+
+                return updatedCart;
+            });
         } catch (err) {
-
-            console.error("Quantity update failed:", err);
+            console.error(
+                "Quantity update failed:",
+                err
+            );
 
             alert(
                 err.response?.data?.message ||
-                "Unable to update quantity."
+                    "Unable to update quantity."
             );
-
         } finally {
-
             setUpdatingId(null);
-
         }
     };
 
@@ -105,15 +161,15 @@ export default function Cart() {
     | Increase Quantity
     |--------------------------------------------------------------------------
     */
-    const increaseQuantity = (item) => {
 
+    const increaseQuantity = (item) => {
         if (item.qty >= 5) {
             return;
         }
 
         updateQuantity(
             item.product_id,
-            item.qty + 1
+            Number(item.qty) + 1
         );
     };
 
@@ -122,86 +178,86 @@ export default function Cart() {
     | Decrease Quantity
     |--------------------------------------------------------------------------
     */
-    const decreaseQuantity = (item) => {
 
+    const decreaseQuantity = (item) => {
         if (item.qty <= 1) {
             return;
         }
 
         updateQuantity(
             item.product_id,
-            item.qty - 1
+            Number(item.qty) - 1
         );
     };
 
     /*
     |--------------------------------------------------------------------------
-    | Remove Item
+    | Remove Product
     |--------------------------------------------------------------------------
     */
-    const removeFromCart = async (productId) => {
 
+    const removeFromCart = async (productId) => {
         try {
+            setRemovingId(productId);
 
             await axios.delete(
                 `/api/cart/${productId}`
             );
 
-            setCart((previousCart) =>
-                previousCart.filter(
-                    (item) => item.product_id !== productId
-                )
-            );
+            setCart((previousCart) => {
+                const updatedCart =
+                    previousCart.filter(
+                        (item) =>
+                            item.product_id !== productId
+                    );
 
+                updateLocalSummary(updatedCart);
+
+                return updatedCart;
+            });
         } catch (err) {
-
-            console.error("Remove failed:", err);
+            console.error(
+                "Remove failed:",
+                err
+            );
 
             alert(
                 err.response?.data?.message ||
-                "Unable to remove item."
+                    "Unable to remove item."
             );
-
+        } finally {
+            setRemovingId(null);
         }
     };
 
     /*
     |--------------------------------------------------------------------------
-    | Totals
+    | Format Price
     |--------------------------------------------------------------------------
     */
-    const total = cart.reduce(
-        (sum, item) =>
-            sum + parseFloat(item.total_price || 0),
-        0
-    );
 
-    const totalItems = cart.reduce(
-        (sum, item) =>
-            sum + parseInt(item.qty || 0),
-        0
-    );
+    const formatPrice = (price) => {
+        return parseFloat(price || 0).toFixed(2);
+    };
 
     /*
     |--------------------------------------------------------------------------
     | Loading
     |--------------------------------------------------------------------------
     */
+
     if (loading) {
-
         return (
-            <div className="container mt-5">
+            <div className="bg-light min-vh-100">
+                <div className="container py-5">
+                    <div className="text-center py-5">
+                        <div className="spinner-border text-primary"></div>
 
-                <div className="text-center py-5">
-
-                    <div className="spinner-border text-primary"></div>
-
-                    <p className="text-muted mt-3">
-                        Loading your cart...
-                    </p>
-
+                        <p className="text-muted mt-3">
+                            Loading your cart...
+                        </p>
+                    </div>
                 </div>
-
             </div>
         );
     }
@@ -211,30 +267,36 @@ export default function Cart() {
     | Error
     |--------------------------------------------------------------------------
     */
+
     if (error) {
-
         return (
-            <div className="container mt-5">
+            <div className="bg-light min-vh-100">
+                <div className="container py-5">
+                    <div className="alert alert-danger">
+                        <strong>Error:</strong>{" "}
+                        {error}
 
-                <div className="alert alert-danger">
-                    {error}
-
-                    <button
-                        className="btn btn-outline-danger btn-sm ms-3"
-                        onClick={fetchCart}
-                    >
-                        Retry
-                    </button>
+                        <button
+                            type="button"
+                            className="btn btn-outline-danger btn-sm ms-3"
+                            onClick={fetchCart}
+                        >
+                            Retry
+                        </button>
+                    </div>
                 </div>
-
             </div>
         );
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Cart Page
+    |--------------------------------------------------------------------------
+    */
+
     return (
-
         <div className="bg-light min-vh-100">
-
             <div className="container py-5">
 
                 {/* =====================================================
@@ -244,16 +306,17 @@ export default function Cart() {
                 <div className="d-flex justify-content-between align-items-center mb-4">
 
                     <div>
-
                         <h2 className="fw-bold mb-1">
                             Shopping Cart
                         </h2>
 
                         <p className="text-muted mb-0">
-                            {totalItems} item
-                            {totalItems !== 1 ? "s" : ""} in your cart
+                            {summary.total_quantity} item
+                            {summary.total_quantity !== 1
+                                ? "s"
+                                : ""}{" "}
+                            in your cart
                         </p>
-
                     </div>
 
                     <Link
@@ -262,21 +325,21 @@ export default function Cart() {
                     >
                         ← Continue Shopping
                     </Link>
-
                 </div>
-
 
                 {/* =====================================================
                     EMPTY CART
                 ====================================================== */}
 
                 {cart.length === 0 ? (
-
                     <div className="card border-0 shadow-sm">
-
                         <div className="card-body text-center py-5">
 
-                            <div style={{ fontSize: "80px" }}>
+                            <div
+                                style={{
+                                    fontSize: "80px",
+                                }}
+                            >
                                 🛒
                             </div>
 
@@ -285,7 +348,8 @@ export default function Cart() {
                             </h4>
 
                             <p className="text-muted">
-                                Looks like you haven't added any items yet.
+                                Looks like you haven't
+                                added any items yet.
                             </p>
 
                             <Link
@@ -294,13 +358,9 @@ export default function Cart() {
                             >
                                 Start Shopping
                             </Link>
-
                         </div>
-
                     </div>
-
                 ) : (
-
                     <div className="row g-4">
 
                         {/* =================================================
@@ -311,179 +371,235 @@ export default function Cart() {
 
                             <div className="card border-0 shadow-sm">
 
+                                <div className="card-header bg-white py-3">
+                                    <h5 className="fw-bold mb-0">
+                                        Cart Items
+                                    </h5>
+                                </div>
+
                                 <div className="card-body p-0">
 
-                                    {cart.map((item, index) => (
+                                    {cart.map(
+                                        (item, index) => (
+                                            <div
+                                                key={item.id}
+                                                className={`p-4 ${
+                                                    index !==
+                                                    cart.length -
+                                                        1
+                                                        ? "border-bottom"
+                                                        : ""
+                                                }`}
+                                            >
 
-                                        <div
-                                            key={item.id}
-                                            className={`p-4 ${
-                                                index !== cart.length - 1
-                                                    ? "border-bottom"
-                                                    : ""
-                                            }`}
-                                        >
+                                                <div className="row align-items-center g-3">
 
-                                            <div className="row align-items-center g-3">
+                                                    {/* =====================
+                                                        IMAGE
+                                                    ====================== */}
 
-                                                {/* IMAGE */}
+                                                    <div className="col-md-2 text-center">
 
-                                                <div className="col-md-2 text-center">
-
-                                                    <img
-                                                        src={`/images/${item.image}`}
-                                                        alt={item.name}
-                                                        className="img-fluid rounded"
-                                                        style={{
-                                                            width: "90px",
-                                                            height: "90px",
-                                                            objectFit: "contain",
-                                                            background: "#f8f9fa",
-                                                            padding: "5px"
-                                                        }}
-                                                    />
-
-                                                </div>
-
-
-                                                {/* PRODUCT */}
-
-                                                <div className="col-md-4">
-
-                                                    <h6 className="fw-semibold mb-1">
-                                                        {item.name}
-                                                    </h6>
-
-                                                    <p className="text-muted small mb-1">
-                                                        {item.category}
-                                                    </p>
-
-                                                    <p className="text-muted small mb-0">
-                                                        Size: {item.size}
-                                                        {" | "}
-                                                        Color: {item.color}
-                                                    </p>
-
-                                                    <div className="mt-2">
-
-                                                        <span className="text-success fw-semibold">
-                                                            ₹ {parseFloat(item.price).toFixed(2)}
-                                                        </span>
-
-                                                        <span className="text-muted small">
-                                                            {" "}per item
-                                                        </span>
-
-                                                    </div>
-
-                                                </div>
-
-
-                                                {/* QUANTITY */}
-
-                                                <div className="col-md-3">
-
-                                                    <label className="small text-muted d-block mb-2">
-                                                        Quantity
-                                                    </label>
-
-                                                    <div
-                                                        className="input-group"
-                                                        style={{
-                                                            maxWidth: "145px"
-                                                        }}
-                                                    >
-
-                                                        <button
-                                                            className="btn btn-outline-secondary"
-                                                            disabled={
-                                                                item.qty <= 1 ||
-                                                                updatingId === item.product_id
+                                                        <img
+                                                            src={`/images/${item.image}`}
+                                                            alt={
+                                                                item.name
                                                             }
-                                                            onClick={() =>
-                                                                decreaseQuantity(item)
-                                                            }
-                                                        >
-                                                            −
-                                                        </button>
-
-                                                        <input
-                                                            type="text"
-                                                            className="form-control text-center fw-bold"
-                                                            value={item.qty}
-                                                            readOnly
+                                                            className="img-fluid rounded"
+                                                            style={{
+                                                                width: "90px",
+                                                                height: "90px",
+                                                                objectFit:
+                                                                    "contain",
+                                                                background:
+                                                                    "#f8f9fa",
+                                                                padding:
+                                                                    "5px",
+                                                            }}
                                                         />
+                                                    </div>
 
-                                                        <button
-                                                            className="btn btn-outline-secondary"
-                                                            disabled={
-                                                                item.qty >= 5 ||
-                                                                updatingId === item.product_id
+                                                    {/* =====================
+                                                        PRODUCT DETAILS
+                                                    ====================== */}
+
+                                                    <div className="col-md-4">
+
+                                                        <h6 className="fw-semibold mb-1">
+                                                            {
+                                                                item.name
                                                             }
-                                                            onClick={() =>
-                                                                increaseQuantity(item)
+                                                        </h6>
+
+                                                        <p className="text-muted small mb-1">
+                                                            {
+                                                                item.category
                                                             }
-                                                        >
-                                                            +
-                                                        </button>
+                                                        </p>
+
+                                                        <p className="text-muted small mb-1">
+                                                            Size:{" "}
+                                                            {
+                                                                item.size
+                                                            }
+                                                        </p>
+
+                                                        <p className="text-muted small mb-2">
+                                                            Color:{" "}
+                                                            {
+                                                                item.color
+                                                            }
+                                                        </p>
+
+                                                        <div>
+                                                            <span className="text-success fw-semibold">
+                                                                ₹{" "}
+                                                                {formatPrice(
+                                                                    item.price
+                                                                )}
+                                                            </span>
+
+                                                            <span className="text-muted small">
+                                                                {" "}
+                                                                per
+                                                                item
+                                                            </span>
+                                                        </div>
 
                                                     </div>
 
-                                                    <small className="text-muted">
-                                                        Maximum 5
-                                                    </small>
+                                                    {/* =====================
+                                                        QUANTITY
+                                                    ====================== */}
 
-                                                </div>
+                                                    <div className="col-md-3">
 
+                                                        <label className="small text-muted d-block mb-2">
+                                                            Quantity
+                                                        </label>
 
-                                                {/* PRICE */}
+                                                        <div
+                                                            className="input-group"
+                                                            style={{
+                                                                maxWidth:
+                                                                    "145px",
+                                                            }}
+                                                        >
 
-                                                <div className="col-md-2 text-end">
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-outline-secondary"
+                                                                disabled={
+                                                                    item.qty <=
+                                                                        1 ||
+                                                                    updatingId ===
+                                                                        item.product_id ||
+                                                                    removingId ===
+                                                                        item.product_id
+                                                                }
+                                                                onClick={() =>
+                                                                    decreaseQuantity(
+                                                                        item
+                                                                    )
+                                                                }
+                                                            >
+                                                                −
+                                                            </button>
 
-                                                    <h6 className="fw-bold text-success mb-2">
+                                                            <input
+                                                                type="text"
+                                                                className="form-control text-center fw-bold"
+                                                                value={
+                                                                    item.qty
+                                                                }
+                                                                readOnly
+                                                            />
 
-                                                        ₹{" "}
-                                                        {parseFloat(
-                                                            item.total_price
-                                                        ).toFixed(2)}
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-outline-secondary"
+                                                                disabled={
+                                                                    item.qty >=
+                                                                        5 ||
+                                                                    updatingId ===
+                                                                        item.product_id ||
+                                                                    removingId ===
+                                                                        item.product_id
+                                                                }
+                                                                onClick={() =>
+                                                                    increaseQuantity(
+                                                                        item
+                                                                    )
+                                                                }
+                                                            >
+                                                                +
+                                                            </button>
 
-                                                    </h6>
+                                                        </div>
 
-                                                    {updatingId === item.product_id && (
-                                                        <div className="spinner-border spinner-border-sm text-primary mb-2"></div>
-                                                    )}
+                                                        <small className="text-muted">
+                                                            Maximum
+                                                            5
+                                                        </small>
 
-                                                    <button
-                                                        className="btn btn-sm btn-outline-danger"
-                                                        disabled={
-                                                            updatingId === item.product_id
-                                                        }
-                                                        onClick={() =>
-                                                            removeFromCart(
-                                                                item.product_id
-                                                            )
-                                                        }
-                                                    >
-                                                        Remove
-                                                    </button>
+                                                    </div>
+
+                                                    {/* =====================
+                                                        PRICE
+                                                    ====================== */}
+
+                                                    <div className="col-md-3 text-md-end">
+
+                                                        <h6 className="fw-bold text-success mb-2">
+                                                            ₹{" "}
+                                                            {formatPrice(
+                                                                item.total_price
+                                                            )}
+                                                        </h6>
+
+                                                        {updatingId ===
+                                                            item.product_id && (
+                                                            <div className="mb-2">
+                                                                <div className="spinner-border spinner-border-sm text-primary"></div>
+                                                            </div>
+                                                        )}
+
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-sm btn-outline-danger"
+                                                            disabled={
+                                                                updatingId ===
+                                                                    item.product_id ||
+                                                                removingId ===
+                                                                    item.product_id
+                                                            }
+                                                            onClick={() =>
+                                                                removeFromCart(
+                                                                    item.product_id
+                                                                )
+                                                            }
+                                                        >
+                                                            {removingId ===
+                                                            item.product_id
+                                                                ? "Removing..."
+                                                                : "Remove"}
+                                                        </button>
+
+                                                    </div>
 
                                                 </div>
 
                                             </div>
-
-                                        </div>
-
-                                    ))}
+                                        )
+                                    )}
 
                                 </div>
-
                             </div>
 
                         </div>
 
-
                         {/* =================================================
-                            SUMMARY
+                            ORDER SUMMARY
                         ================================================== */}
 
                         <div className="col-lg-4">
@@ -492,7 +608,7 @@ export default function Cart() {
                                 className="card border-0 shadow-sm"
                                 style={{
                                     position: "sticky",
-                                    top: "110px"
+                                    top: "110px",
                                 }}
                             >
 
@@ -502,17 +618,39 @@ export default function Cart() {
                                         Order Summary
                                     </h5>
 
+                                    {/* Total Products */}
+
                                     <div className="d-flex justify-content-between mb-3">
 
                                         <span className="text-muted">
-                                            Total Items
+                                            Products
                                         </span>
 
                                         <span className="fw-semibold">
-                                            {totalItems}
+                                            {
+                                                summary.total_items
+                                            }
                                         </span>
 
                                     </div>
+
+                                    {/* Total Quantity */}
+
+                                    <div className="d-flex justify-content-between mb-3">
+
+                                        <span className="text-muted">
+                                            Total Quantity
+                                        </span>
+
+                                        <span className="fw-semibold">
+                                            {
+                                                summary.total_quantity
+                                            }
+                                        </span>
+
+                                    </div>
+
+                                    {/* Subtotal */}
 
                                     <div className="d-flex justify-content-between mb-3">
 
@@ -521,10 +659,15 @@ export default function Cart() {
                                         </span>
 
                                         <span className="fw-semibold">
-                                            ₹ {total.toFixed(2)}
+                                            ₹{" "}
+                                            {formatPrice(
+                                                summary.subtotal
+                                            )}
                                         </span>
 
                                     </div>
+
+                                    {/* Shipping */}
 
                                     <div className="d-flex justify-content-between mb-3">
 
@@ -540,6 +683,8 @@ export default function Cart() {
 
                                     <hr />
 
+                                    {/* Total */}
+
                                     <div className="d-flex justify-content-between mb-4">
 
                                         <span className="fw-bold fs-5">
@@ -547,13 +692,24 @@ export default function Cart() {
                                         </span>
 
                                         <span className="fw-bold fs-5 text-success">
-                                            ₹ {total.toFixed(2)}
+                                            ₹{" "}
+                                            {formatPrice(
+                                                summary.subtotal
+                                            )}
                                         </span>
 
                                     </div>
 
+                                    {/* Checkout */}
+
                                     <button
+                                        type="button"
                                         className="btn btn-success btn-lg w-100 mb-2"
+                                        onClick={() =>
+                                            alert(
+                                                "Checkout functionality coming soon."
+                                            )
+                                        }
                                     >
                                         Proceed to Checkout
                                     </button>
@@ -572,11 +728,8 @@ export default function Cart() {
                         </div>
 
                     </div>
-
                 )}
-
             </div>
-
         </div>
     );
 }
